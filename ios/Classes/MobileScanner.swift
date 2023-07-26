@@ -155,7 +155,7 @@ public class MobileScanner: NSObject {
         } else {
             scanWindow = nil
         }
-        if (captureSession.isRunning) {
+        if (captureSession != nil && captureSession?.isRunning == true) {
             updateScanWindow()
         }
     }
