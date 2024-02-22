@@ -76,7 +76,7 @@ public class MobileScanner: NSObject {
             captureSession.addOutput(metadataOutput)
 
             metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
-            metadataOutput.metadataObjectTypes = [.qr]
+            metadataOutput.metadataObjectTypes = [.qr, .dataMatrix]
         } else {
             throw MobileScannerError.noOutput
         }
@@ -193,7 +193,7 @@ extension MobileScanner: AVCaptureMetadataOutputObjectsDelegate {
     ) {
         if
             let readableObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
-            readableObject.type == AVMetadataObject.ObjectType.qr,
+            readableObject.type == AVMetadataObject.ObjectType.qr || readableObject.type == AVMetadataObject.ObjectType.dataMatrix,
             let value = readableObject.stringValue
         {
             let barcode = Barcode(value: value)
