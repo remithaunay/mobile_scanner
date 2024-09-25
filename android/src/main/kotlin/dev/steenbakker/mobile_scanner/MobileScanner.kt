@@ -61,9 +61,8 @@ class MobileScanner(
     val captureOutput = ImageAnalysis.Analyzer { imageProxy -> // YUV_420_888 format
         val mediaImage = imageProxy.image ?: return@Analyzer
 
-        // Every 10 frames, it checks the inverted image instead of the normal image
-        frameCount += 1
-        if (frameCount == 10) {
+        // Every other frame, it checks the inverted image instead of the normal image
+        if (frameCount == 1) {
             frameCount = 0
             GlobalScope.launch(Dispatchers.IO) {
                 process(
@@ -77,15 +76,18 @@ class MobileScanner(
                 )
             }
         } else {
-            process(
-                false,
-                mediaImage,
-                imageProxy,
-                InputImage.fromMediaImage(
+            frameCount += 1
+            GlobalScope.launch(Dispatchers.IO) {
+                process(
+                    false,
                     mediaImage,
-                    imageProxy.imageInfo.rotationDegrees
+                    imageProxy,
+                    InputImage.fromMediaImage(
+                        mediaImage,
+                        imageProxy.imageInfo.rotationDegrees
+                    )
                 )
-            )
+            }
         }
     }
 
