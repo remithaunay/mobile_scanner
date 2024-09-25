@@ -1,7 +1,14 @@
 package dev.steenbakker.mobile_scanner
 
 import android.app.Activity
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.ImageFormat
 import android.graphics.Rect
+import android.graphics.YuvImage
+import android.media.Image
+import android.media.Image.Plane
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -17,7 +24,12 @@ import com.google.mlkit.vision.common.InputImage
 import dev.steenbakker.mobile_scanner.objects.DetectionSpeed
 import dev.steenbakker.mobile_scanner.objects.MobileScannerStartParameters
 import io.flutter.view.TextureRegistry
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import kotlin.math.roundToInt
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 class MobileScanner(
     private val activity: Activity,
@@ -40,6 +52,7 @@ class MobileScanner(
     private var detectionSpeed: DetectionSpeed = DetectionSpeed.NO_DUPLICATES
     private var detectionTimeout: Long = 250
     private var returnImage = false
+    private var frameCount = 0
 
     /**
      * callback for the camera. Every frame is passed through this function.
@@ -47,11 +60,80 @@ class MobileScanner(
     @ExperimentalGetImage
     val captureOutput = ImageAnalysis.Analyzer { imageProxy -> // YUV_420_888 format
         val mediaImage = imageProxy.image ?: return@Analyzer
-        val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
 
+        // Every 10 frames, it checks the inverted image instead of the normal image
+        frameCount += 1
+        if (frameCount == 10) {
+            frameCount = 0
+            GlobalScope.launch(Dispatchers.IO) {
+                process(
+                    true,
+                    mediaImage,
+                    imageProxy,
+                    InputImage.fromBitmap(
+                        invertBitmap(imageToBitmap(mediaImage)),
+                        imageProxy.imageInfo.rotationDegrees
+                    )
+                )
+            }
+        } else {
+            process(
+                false,
+                mediaImage,
+                imageProxy,
+                InputImage.fromMediaImage(
+                    mediaImage,
+                    imageProxy.imageInfo.rotationDegrees
+                )
+            )
+        }
+    }
+
+    fun imageToBitmap(image: Image): Bitmap {
+        val yBuffer: ByteBuffer = image.planes[0].buffer // Y
+        val vuBuffer: ByteBuffer = image.planes[2].buffer // VU
+
+        val ySize = yBuffer.remaining()
+        val vuSize = vuBuffer.remaining()
+        val nv21 = ByteArray(ySize + vuSize)
+
+        yBuffer.get(nv21, 0, ySize)
+        vuBuffer.get(nv21, ySize, vuSize)
+
+        val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
+        val outStream = ByteArrayOutputStream()
+        yuvImage.compressToJpeg(Rect(0, 0, yuvImage.width, yuvImage.height), 50, outStream)
+
+        val imageBytes = outStream.toByteArray()
+        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+    }
+
+    fun invertBitmap(original: Bitmap): Bitmap {
+        val invertedBitmap: Bitmap =
+            Bitmap.createBitmap(original.getWidth(), original.getHeight(), original.getConfig())
+
+        val width: Int = original.getWidth()
+        val height: Int = original.getHeight()
+
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                val pixelColor: Int = original.getPixel(x, y)
+                val invertedColor: Int = Color.rgb(
+                    255 - Color.red(pixelColor),
+                    255 - Color.green(pixelColor),
+                    255 - Color.blue(pixelColor)
+                )
+                invertedBitmap.setPixel(x, y, invertedColor)
+            }
+        }
+
+        return invertedBitmap
+    }
+
+    private fun process(isInverted: Boolean, mediaImage: Image, imageProxy: ImageProxy, inputImage: InputImage) {
         if (detectionSpeed == DetectionSpeed.NORMAL && scannerTimeout) {
             imageProxy.close()
-            return@Analyzer
+            return
         } else if (detectionSpeed == DetectionSpeed.NORMAL) {
             scannerTimeout = true
         }
