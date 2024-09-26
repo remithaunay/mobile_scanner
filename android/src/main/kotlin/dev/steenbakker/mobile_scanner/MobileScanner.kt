@@ -3,8 +3,12 @@ package dev.steenbakker.mobile_scanner
 import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.ImageFormat
+import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.media.Image
@@ -111,25 +115,32 @@ class MobileScanner(
     }
 
     fun invertBitmap(original: Bitmap): Bitmap {
-        val invertedBitmap: Bitmap =
-            Bitmap.createBitmap(original.getWidth(), original.getHeight(), original.getConfig())
-
-        val width: Int = original.getWidth()
         val height: Int = original.getHeight()
+        val width: Int = original.getWidth()
 
-        for (x in 0 until width) {
-            for (y in 0 until height) {
-                val pixelColor: Int = original.getPixel(x, y)
-                val invertedColor: Int = Color.rgb(
-                    255 - Color.red(pixelColor),
-                    255 - Color.green(pixelColor),
-                    255 - Color.blue(pixelColor)
-                )
-                invertedBitmap.setPixel(x, y, invertedColor)
-            }
-        }
+        val bitmap: Bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas: Canvas = Canvas(bitmap)
+        val paint: Paint = Paint()
 
-        return invertedBitmap
+        val matrixGrayscale: ColorMatrix = ColorMatrix()
+        matrixGrayscale.setSaturation(0f)
+
+        val matrixInvert: ColorMatrix = ColorMatrix()
+        matrixInvert.set(
+            floatArrayOf(
+                -1.0f, 0.0f, 0.0f, 0.0f, 255.0f,
+                0.0f, -1.0f, 0.0f, 0.0f, 255.0f,
+                0.0f, 0.0f, -1.0f, 0.0f, 255.0f,
+                0.0f, 0.0f, 0.0f, 1.0f, 0.0f
+            )
+        )
+        matrixInvert.preConcat(matrixGrayscale)
+
+        val filter: ColorMatrixColorFilter = ColorMatrixColorFilter(matrixInvert)
+        paint.setColorFilter(filter)
+
+        canvas.drawBitmap(original, 0f, 0f, paint)
+        return bitmap
     }
 
     private fun process(isInverted: Boolean, mediaImage: Image, imageProxy: ImageProxy, inputImage: InputImage) {
