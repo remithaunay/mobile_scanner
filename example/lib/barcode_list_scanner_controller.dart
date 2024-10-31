@@ -17,7 +17,7 @@ class _BarcodeListScannerWithControllerState
   BarcodeCapture? barcodeCapture;
 
   final MobileScannerController controller = MobileScannerController(
-    torchEnabled: true,
+    torchEnabled: false,
     // formats: [BarcodeFormat.qrCode]
     // facing: CameraFacing.front,
     // detectionSpeed: DetectionSpeed.normal

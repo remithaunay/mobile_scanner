@@ -69,28 +69,17 @@ class MobileScanner(
         if (frameCount == 1) {
             frameCount = 0
             GlobalScope.launch(Dispatchers.IO) {
-                process(
-                    true,
-                    mediaImage,
-                    imageProxy,
-                    InputImage.fromBitmap(
-                        invertBitmap(imageToBitmap(mediaImage)),
-                        imageProxy.imageInfo.rotationDegrees
-                    )
-                )
+                val bitmap = imageToBitmap(mediaImage)
+                val invertedBitmap = invertBitmap(bitmap)
+                val image = InputImage.fromBitmap(invertedBitmap, imageProxy.imageInfo.rotationDegrees)
+                process(mediaImage, imageProxy, image)
             }
         } else {
             frameCount += 1
             GlobalScope.launch(Dispatchers.IO) {
-                process(
-                    false,
-                    mediaImage,
-                    imageProxy,
-                    InputImage.fromMediaImage(
-                        mediaImage,
-                        imageProxy.imageInfo.rotationDegrees
-                    )
-                )
+                val image =
+                    InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                process(mediaImage, imageProxy, image)
             }
         }
     }
@@ -143,7 +132,7 @@ class MobileScanner(
         return bitmap
     }
 
-    private fun process(isInverted: Boolean, mediaImage: Image, imageProxy: ImageProxy, inputImage: InputImage) {
+    private fun process(mediaImage: Image, imageProxy: ImageProxy, inputImage: InputImage) {
         if (detectionSpeed == DetectionSpeed.NORMAL && scannerTimeout) {
             imageProxy.close()
             return

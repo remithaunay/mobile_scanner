@@ -20,7 +20,7 @@ class _BarcodeScannerWithControllerState
     torchEnabled: false,
     // formats: [BarcodeFormat.qrCode]
     // facing: CameraFacing.front,
-     detectionSpeed: DetectionSpeed.noDuplicates
+    // detectionSpeed: DetectionSpeed.noDuplicates
     // detectionTimeoutMs: 1000,
     // returnImage: false,
   );
