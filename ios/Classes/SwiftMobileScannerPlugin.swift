@@ -7,8 +7,13 @@ public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
     private let mobileScanner: MobileScanner
     private let barcodeHandler: BarcodeHandler
 
-    init(barcodeHandler: BarcodeHandler, registry: FlutterTextureRegistry) {
-        self.mobileScanner = MobileScanner(registry: registry, mobileScannerCallback: { barcodes, error in
+    init(
+        barcodeHandler: BarcodeHandler,
+        registry: FlutterTextureRegistry
+    ) {
+        self.mobileScanner = MobileScanner(
+        registry: registry,
+        mobileScannerCallback: { barcodes, error in
             if let barcodes {
                 if (!barcodes.isEmpty) {
                     let data = barcodes.map({
@@ -64,9 +69,21 @@ public class SwiftMobileScannerPlugin: NSObject, FlutterPlugin {
     /// Parses all parameters and starts the mobileScanner
     private func start(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let torch: Bool = (call.arguments as! Dictionary<String, Any?>)["torch"] as? Bool ?? false
+        let formats: Array<Int> = (call.arguments as! Dictionary<String, Any?>)["formats"] as? Array ?? []
+        let types = formats.compactMap { format in AVMetadataObject.ObjectType.from(format) }
+
+        let speed: Int = (call.arguments as! Dictionary<String, Any?>)["speed"] as? Int ?? 0
+        let detectionSpeed: DetectionSpeed = DetectionSpeed(rawValue: speed)!
+        let timeoutMilliseconds: Int = (call.arguments as! Dictionary<String, Any?>)["timeout"] as? Int ?? 0
+        let timeout = Double(timeoutMilliseconds) / 1000
 
         do {
-            let parameters = try mobileScanner.start(torch: torch ? .on : .off)
+            let parameters = try mobileScanner.start(
+                torch: torch ? .on : .off,
+                timeout: timeout,
+                types: types,
+                detectionSpeed: detectionSpeed
+            )
             result([
                 "textureId": parameters.textureId,
                 "size": ["width": parameters.width, "height": parameters.height],

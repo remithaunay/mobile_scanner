@@ -20,9 +20,14 @@ public class MobileScanner: NSObject {
     private var captureSession: AVCaptureSession!
     private var device: AVCaptureDevice!
     private var metadataOutput: AVCaptureMetadataOutput!
+    private var lastProcessedTimestamp: CMTime = .zero
 
     private var scanWindow: CGRect?
     private var torchMode: AVCaptureDevice.TorchMode = .off
+    private var timeout: TimeInterval?
+    private var types: [AVMetadataObject.ObjectType] = []
+    private var detectionSpeed: DetectionSpeed = .noDuplicates
+    private var lastValue: String?
 
     private let mobileScannerCallback: MobileScannerCallback
     private let torchModeChangeCallback: TorchModeChangeCallback
@@ -41,6 +46,7 @@ public class MobileScanner: NSObject {
         self.mobileScannerCallback = mobileScannerCallback
         self.torchModeChangeCallback = torchModeChangeCallback
         super.init()
+        print("MobileScanner initialized")
     }
 
     func checkPermission() -> Int {
@@ -52,7 +58,21 @@ public class MobileScanner: NSObject {
         }
     }
 
-    func start(torch: AVCaptureDevice.TorchMode) throws -> MobileScannerStartParameters {
+    func start(
+        torch: AVCaptureDevice.TorchMode,
+        timeout: TimeInterval?,
+        types: [AVMetadataObject.ObjectType],
+        detectionSpeed: DetectionSpeed
+    ) throws -> MobileScannerStartParameters {
+        print("start")
+        print("torch: \(torch)")
+        print("timeout: \(String(describing: timeout))")
+        print("types: \(types)")
+        print("detectionSpeed: \(detectionSpeed)")
+        self.timeout = timeout
+        self.types = types
+        self.detectionSpeed = detectionSpeed
+
         guard (device == nil) else { throw MobileScannerError.alreadyStarted }
 
         captureSession = AVCaptureSession()
@@ -76,7 +96,7 @@ public class MobileScanner: NSObject {
             captureSession.addOutput(metadataOutput)
 
             metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
-            metadataOutput.metadataObjectTypes = [.qr, .dataMatrix]
+            metadataOutput.metadataObjectTypes = types
         } else {
             throw MobileScannerError.noOutput
         }
@@ -191,14 +211,29 @@ extension MobileScanner: AVCaptureMetadataOutputObjectsDelegate {
         didOutput metadataObjects: [AVMetadataObject],
         from connection: AVCaptureConnection
     ) {
-        if
+        print("--- metadataObjects: \(metadataObjects)")
+        let currentTime = CMTimeGetSeconds(CMClockGetTime(CMClockGetHostTimeClock()))
+        let lastTime = CMTimeGetSeconds(lastProcessedTimestamp)
+        print("--- currentTime: \(currentTime)")
+        print("--- lastTime: \(lastTime)")
+        print("--- currentTime - lastTime: \(currentTime - lastTime)")
+        guard
             let readableObject = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
-            readableObject.type == AVMetadataObject.ObjectType.qr || readableObject.type == AVMetadataObject.ObjectType.dataMatrix,
-            let value = readableObject.stringValue
-        {
-            let barcode = Barcode(value: value)
-            mobileScannerCallback([barcode], nil)
+            let value = readableObject.stringValue,
+            (detectionSpeed != .normal || currentTime - lastTime >= (timeout ?? 0)),
+            (detectionSpeed != .noDuplicates || value != lastValue)
+        else {
+            return
         }
+
+        print("--- readableObject: \(readableObject)")
+        print("--- value: \(value)")
+
+        lastProcessedTimestamp = CMClockGetTime(CMClockGetHostTimeClock())
+        lastValue = value
+
+        let barcode = Barcode(value: value)
+        mobileScannerCallback([barcode], nil)
     }
 }
 
