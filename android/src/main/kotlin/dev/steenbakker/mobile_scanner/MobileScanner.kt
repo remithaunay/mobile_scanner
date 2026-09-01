@@ -79,6 +79,8 @@ class MobileScanner(
     /// Configurable variables
     var scanWindow: List<Float>? = null
     private var invertImage: Boolean = false
+    // Counts analyzed frames; only read/written on the single-threaded analysisExecutor.
+    private var frameCounter: Int = 0
     private var detectionSpeed: DetectionSpeed = DetectionSpeed.NO_DUPLICATES
     private var detectionTimeout: Long = 250
     private var returnImage = false
@@ -121,10 +123,15 @@ class MobileScanner(
             scannerTimeout = true
         }
 
+        // When invertImage is set, invert only every other frame so both regular
+        // and inverted barcodes keep being detected.
+        val shouldInvert = invertImage && frameCounter % 2 == 0
+        frameCounter = (frameCounter + 1) % 2
+
         // Create InputImage directly from ImageProxy for better performance
         // Only convert to Bitmap if we need to invert colors
         var invertedBitmap: Bitmap? = null
-        val inputImage = if (invertImage) {
+        val inputImage = if (shouldInvert) {
             val bitmap = imageProxy.toBitmap()
             invertedBitmap = invertBitmapColors(bitmap)
             bitmap.recycle()
@@ -191,7 +198,7 @@ class MobileScanner(
                     var rotatedBitmap = rotateBitmap(baseBitmap, camera?.cameraInfo?.sensorRotationDegrees ?: 90)
 
                     // Revert inverted image colors for the returned image (MLKit already scanned the inverted version)
-                    if (invertImage) {
+                    if (shouldInvert) {
                         val revertedBitmap = invertBitmapColors(rotatedBitmap)
                         rotatedBitmap.recycle()
                         rotatedBitmap = revertedBitmap
